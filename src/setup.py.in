@@ -1,0 +1,11 @@
+#!/usr/bin/env python
+
+from distutils.core import setup
+
+setup(name='Tivano SSL Reverse Proxy library',
+      version='__VERSION__',
+      description='tivano utilities',
+      author='Pietro Bertera',
+      author_email='pietro@bertera.it',
+      packages=['tivano'],
+     )

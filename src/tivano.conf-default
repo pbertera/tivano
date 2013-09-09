@@ -1,0 +1,127 @@
+; main section
+[main]
+
+; specify the local ip address to bind sending SIP messages 
+; dummy automatic discover of local ip (tries reaching google.com)
+local_ip = default
+;
+; define a local ip to use
+;local_ip = 172.16.18.40
+;
+; define interface name
+;local_ip = eth0:1
+
+; define local listening port (default 443)
+listen_port = 8443
+
+; specify the PID file
+pid_file = __PIDFILE__
+
+; log to a remote syslog:
+; syslog syntax is: syslog:ip_server:port:facility
+; here the list of syslog facilities:
+; auth, authpriv, cron, daemon, ftp, kern
+; lpr, mail, news, syslog, user, uucp
+; local0, local1, local2, local3, local4
+; local5, local6, local7
+;log_file = syslog:172.16.18.40:514:daemon
+
+;if you don't define log_file log will be sent to stderr socket
+
+; log to a file
+;log_file = __LOGFILE__
+
+; enable debug level: use it only during troubleshooting
+debug = True
+
+; enforce client certificates authentication (this value can be yes, no or optional)
+enforce_clients_cert = optional
+
+; webserver access log
+access_log = __ACCESS_LOG__
+
+; run as daemon, if not true run in foreground
+daemon = False
+
+; server SSL certificate
+server_cert = __CONFDIR__/cert-key.pem
+
+; server SSL private key
+server_key = __CONFDIR__/cert-key.pem
+
+; clients SSL CA key
+clients_cert = __CONFDIR__/ca.pem
+
+; Forward headers from remote HTTP server to remote client
+; Comma separated HTTP headers list, default: Date,Cache-Control,Server,Content-Type,Location,Content-Length
+forward_headers = Date,Cache-Control,Server,Content-Type,Location,Content-Length
+
+; Send custom HTTP headers to the remote HTTP server
+; send_header_XXXX: XXXX represents the header name, you can use all templates variables here.
+send_header_X-Cient_CommonName = ${client_cert_commonName}
+send_header_X-Cient_User-Agent = ${client_header_User-Agent}
+send_header_X-Real-Ip = ${remote_ip}
+send_header_X-Proxy-Ip = ${local_ip}
+
+; Request Matching rules.
+;
+; * every rule must start with "rule_" prefix.
+; * every rule must contain a regex and subst statement
+; * every rule is checked sequentially, the first match wins
+; * regex statement is a python regular expression evalued against
+;   the requested URI
+; * subst statement is used to build the target URI
+;   in subst statement you can refer to regex groups
+;
+;   - if subst statement starts with DENY prefix the proxy replies to the client with an HTTP code
+;   Eg.: DENY:401:Unauthorized you're not allowed
+;   reply with a "HTTP/1.1 401 Unauthorized you're not allowed" message
+;
+;   - in subst you can use refence group used in regex expression
+;
+;   - you can use some variables in subst and regex statement
+;
+;     - the ${local_ip} placeholder will be replaced with local_ip value from [main] section 
+;       $$ is an escape; it is replaced with a single $
+; 
+;     - ${client_cert_notAfter} is the client cert (if provided by client) expiry value
+;     - ${client_cert_XXXXX} RDN fields extraced from the client certificate subject
+;       Eg. ${client_cert_commonName} will contains the commonName RDN subject field 
+;           ${client_cert_commonorganizationName} will contains the organizationName RDN subject field 
+;
+;     - ${client_header_XXXX} HTTP headers coming from the client request
+;       Eg. ${client_header_User-Agent} contains the received HTTP User-Agent header 
+;
+;     You can create jumps betwee rules:
+;     If a rule is defined like "GOTO:rule_XX:new_URI" the rules evaluation process will jump
+;     to the rule 'rule_XX' and the URI will be rewritten by the third expression
+;     In rewritten URI you can use all 'client_cert_*' and 'client_header_*' placeholders
+;     Original URI can be referred using the placeholder ${original_uri}
+;   
+; for more informations about python regex see: 
+; * http://docs.python.org/2/library/re.html
+; * http://docs.python.org/2/howto/regex.html
+
+; send all requests to www.google.com/
+;[rule_1]
+;regex = ^/(.*)$
+;subst = http://www.google.com/\1
+
+[rule_2]
+; Forward requests for /commonname-COMMON_NAME.xml
+regex = ^/commonname-(${client_cert_commonName}).xml$
+subst = http://my.internal.server/app.php?CN=\1
+
+[rule_10]
+; Deny all requests this is a catch all rule (see the order)
+regex = ^/.*
+subst = DENY:404:Not found: ${commonName}
+
+[rule_5]
+; GOTO rule
+regex = ^/text-(.*).xml$
+subst = GOTO:rule_101:${original_uri}?AcceptLanguage=${client_header_Accept-Language}&client_commonName=${client_cert_commonName}
+
+[rule_101]
+regex = ^(.*)\?AcceptLanguage=(.*)&client_commonName=(.*)
+subst = DENY:404:Not found!!: ${client_cert_commonName} - \1 \2 \3
