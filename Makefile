@@ -8,6 +8,11 @@ include VERSION
 BUILDDIR=build_tivano
 BUILDTARDIR=$(NAME)_$(VERSION)
 
+PYTHON_VERSION_FULL := $(wordlist 2,4,$(subst ., ,$(shell python -V 2>&1)))
+PYTHON_VERSION_MAJOR := $(word 1,${PYTHON_VERSION_FULL})
+PYTHON_VERSION_MINOR := $(word 2,${PYTHON_VERSION_FULL})
+PYTHON_VERSION_PATCH := $(word 3,${PYTHON_VERSION_FULL})
+
 # WGET command
 WGET?=wget
 
@@ -23,6 +28,21 @@ do_subst = sed -e 's,__VERSION__,${VERSION},g' \
 			-e 's,__PYTHON_LIB__,$(PYTHON_LIB),g' \
 			-e 's,__ACCESS_LOG__,$(ACCESS_LOG),g' \
 			-e 's,__CONFDIR__,$(CONFDIR),g' \
+
+check-python-version:
+	if [ ${PYTHON_VERSION_MAJOR} -eq 2 ]; then \
+		if [ ${PYTHON_VERSION_MINOR} -gt 5 ]; then \
+			echo "Detected Python:" ;\
+			echo "Major: ${PYTHON_VERSION_MAJOR}" ;\
+			echo "Minor: ${PYTHON_VERSION_MINOR}" ;\
+		else \
+			echo "Only Python > 2.5 is supported now"; \
+			exit -1;\
+		fi ;\
+	else \
+		echo "Only Python 2 is supported now..";\
+		exit -1;\
+	fi
 
 build-setup:
 	mkdir -p $(BUILDDIR)
@@ -71,7 +91,7 @@ certs:  build-setup
 	  echo "configure me" > ../$(BUILDDIR)/$(CONFDIR)/ca.pem;\
 	fi
 
-tivano: build-clean build-setup tivano-bin tivano-init-script tivano-conf tivanolib tornado certs
+tivano: check-python-version build-clean build-setup tivano-bin tivano-init-script tivano-conf tivanolib tornado certs
 	# install scripts
 	install -d -m 0755 $(DAEMONDIR)
 	install -d -m 0755 $(INITDIR)

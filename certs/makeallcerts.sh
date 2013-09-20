@@ -24,7 +24,13 @@ echo "#################################################"
 echo "##          MAKING SERVER SIDE CERTS            #"
 echo "#################################################"
 
-./makecerts.sh cert cakey.pem cacert.pem servercertkey.pem cervercertkey.pem
+./makecerts.sh cert cakey.pem cacert.pem #servercertkey.pem servercertkey.pem
+
+mv key.pem server-key.pem
+mv cert.pem server-cert.pem
+
+cp server-cert.pem servercertkey.pem
+cat server-key.pem >> servercertkey.pem 
 
 echo
 echo
@@ -32,7 +38,13 @@ echo "#################################################"
 echo "##          MAKING CLIENT SIDE CERTS            #"
 echo "#################################################"
 
-./makecerts.sh cert cakey.pem cacert.pem clientcertkey.pem clientcertkey.pem
+./makecerts.sh cert cakey.pem cacert.pem #clientcertkey.pem clientcertkey.pem
+
+mv key.pem client-key.pem
+mv cert.pem client-cert.pem
+
+cp client-cert.pem clientcertkey.pem
+cat client-key.pem >> clientcertkey.pem
 
 echo
 echo
