@@ -14,7 +14,9 @@ tivano is an HTTPS reverse proxy based on a regex ruleset engine.
 
 Tivano works is capable of routing between many HTTP backend server, you can use tivano as a security layer ahead of your web services.
 
-### What can I do using tivano ?
+### Features
+
+Here an incomplete and small feature list:
 
 - you can configure tivano as a frontend server exposing HTTPS services
 - you can perform TLS client authentication using certificates
