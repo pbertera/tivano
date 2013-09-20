@@ -2,7 +2,11 @@
 
 ## Status of the project
 
-You can consider tivano as a 'working beta' 
+You can consider tivano as a 'working alpha', you're free to use at your own risk. The 0.0.2-alpha relase has a great and useful feature set.
+
+Please report every bug to me. pietro@bertera.it
+
+Suggestion and contributions are welcome!!
 
 ## Intro
 
@@ -20,6 +24,8 @@ tivano is an HTTPS reverse proxy based on a regex powered engine.
 Tivano is a pure python HTTPS proxy running over the asynchronous [Tornado](http://www.tornadoweb.org).
 
 ## Tivano fast start
+
+You can download tivano directly from the Github repo [here](https://github.com/pbertera/tivano/archive/v0.0.2-alpha.tar.gz)
 
 ### Installation
 
