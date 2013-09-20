@@ -23,6 +23,8 @@ tivano is an HTTPS reverse proxy based on a regex powered engine.
 
 Tivano is a pure python HTTPS proxy running over the asynchronous [Tornado](http://www.tornadoweb.org).
 
+Tivano works as a reverse proxy capable of routing between many HTTP backend server, you can use tivano as a security layer ahead of your web services.
+
 ## Tivano fast start
 
 You can download tivano directly from the Github repo [here](https://github.com/pbertera/tivano/archive/v0.0.2-alpha.tar.gz)
