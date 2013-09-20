@@ -1,10 +1,10 @@
-DESTDIR=/tmp/opt/tivano
+DESTDIR=/opt/tivano
 PYTHON_LIB=$(DESTDIR)/lib/python
 INITDIR=$(DESTDIR)/etc/init.d
 DAEMONDIR=$(DESTDIR)/usr/sbin
 CONFDIR=$(DESTDIR)/etc/tivano
-USER=root
-GROUP=root
+USER=pietro
+GROUP=staff
 PIDFILE=/tmp/var/run/tivano.pid
 LOGFILE=/tmp/var/log/tivano.log
 ACCESS_LOG=/tmp/var/log/tivano-access.log

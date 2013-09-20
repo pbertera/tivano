@@ -173,6 +173,9 @@ class SettingsParser:
         self.regex = []
         self.subst = []
         self.label = []    
+        self.match = []
+        self.stop = []
+
         try:
             rules = sorted([i for i in self.config.sections() if i.startswith(prefix)], key=lambda num: int(num.split("_")[-1]))
         except ValueError, e:
@@ -191,14 +194,38 @@ class SettingsParser:
             if s.startswith(prefix):
                 self.logger.debugMessage("Rule[%d]: %s" % (i,s))
                 try:
+                    match = self.config.get(s, "match")
+                    if match not in ("uri", "headers", "new_header"):
+                        self.logger.configError("Wrong match statement in %s section, match must be one of \"uri\", \"new_header\", \"del_header\" or \"headers\"" % s)
+                        sys.exit(1)
+
+                    # new_header and del_header doesn't require regex
+                    elif match in ("new_header", "del_header"):
+                        self.config.set(s, 'regex', '')
+
+                except ConfigParser.NoOptionError:
+                    self.logger.configError("Missing match statement in %s section, match must be \"uri\" or \"headers\"" % s)
+                    sys.exit(1)
+                try:
                     reg = self.config.get(s, 'regex')
                     sub = Template(self.config.get(s, 'subst')).safe_substitute(local_ip=self.common_config["local_ip"])
                 except ConfigParser.NoOptionError:
                     self.logger.configError("Missing regex/subst option in %s section" % s)
                     sys.exit(1)
+               
+                try:
+                    stop = self.config.get(s, "stop")
+                    if stop.lower() not in ("yes", "no"):
+                        self.logger.configError("Wrong stop statement in %s section, stop must be \"yes\" or \"no\"" % s)
+                        sys.exit(1)
+                except ConfigParser.NoOptionError:
+                    stop = "no"
+
                 self.logger.debugMessage("Regex: %s" % reg)
                 self.logger.debugMessage("Subst: %s" % sub)
-        
+                self.logger.debugMessage("Match: %s" % match)
+                self.logger.debugMessage("Stop: %s" % stop)
+
                 try:
                     self.regex.append(re.compile(ur'%s' % reg, re.MULTILINE))
                 except Exception, e:
@@ -206,9 +233,11 @@ class SettingsParser:
     
                 self.subst.append(ur'%s' % sub)
                 self.label.append(s)
+                self.match.append(match)
+                self.stop.append(stop)
                 i = i +1
 
-        return {"regex": self.regex, "subst": self.subst, "label": self.label}
+        return {"regex": self.regex, "subst": self.subst, "label": self.label, "match": self.match, "stop": self.stop}
 
 # daemonizing function
 def become_daemon(pid_file=None):

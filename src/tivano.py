@@ -45,42 +45,68 @@ class ProxyHandler(tornado.web.RequestHandler):
         self.regex = request_rules["regex"]
         self.subst = request_rules["subst"]
         self.label = request_rules["label"]
+        self.match = request_rules["match"]
+        self.stop = request_rules["stop"]
         self.forward_headers = forward_headers
         self.send_headers = send_headers
+        self.url = None
 
     def check_request(self):
+        """
+        set self.url
+        """
         # Evaluating request
         i = 0
         while i < len(self.subst):
             r = self.regex[i]
-            proxy_logger.debugMessage("Evaluating %d rule" % i)
+            proxy_logger.debugMessage("Evaluating rule num %d (%s)" % (i, self.label[i]))
             proxy_logger.debugMessage("Pattern: %s" % r.pattern)
             proxy_logger.debugMessage("Subst: %s" % self.subst[i])
+            proxy_logger.debugMessage("Match: %s" % self.match[i])
+            proxy_logger.debugMessage("Stop: %s" % self.stop[i])
 
             new_reg = CustomTemplate(r.pattern).safe_substitute(self.template_vars)
             replacement = CustomTemplate(self.subst[i]).safe_substitute(self.template_vars)
-            proxy_logger.debugMessage("Appling substitution: pattern: %s, replacement: %s, string: %s" % (new_reg, replacement, self.request.uri))
-            res = re.sub(new_reg, replacement, self.request.uri)
-
-            if res != self.request.uri:
-                proxy_logger.infoMessage("HTTP request found: rule number: %d" % i)
-                proxy_logger.debugMessage("Subst result: %s" % res)
+            
+            if self.match[i] == "uri":
+                proxy_logger.debugMessage("Appling URI substitution: pattern: %s, replacement: %s, URI: %s" % (new_reg, replacement, self.request.uri))
+                res = re.sub(new_reg, replacement, self.request.uri)
+                # URI matched:
+                #if res != self.request.uri:
+                #proxy_logger.infoMessage("HTTP request found: rule number: %d" % i)
+                proxy_logger.debugMessage("URI substitution result: %s" % res)
                 if res.split(":")[0] == "GOTO":
                     goto_label = res.split(":")[1]
                     proxy_logger.debugMessage("Found GOTO statement: GOTO label -> '%s'" % goto_label)
                     goto_index = self.label.index(goto_label)
                     proxy_logger.debugMessage("Found GOTO statement: GOTO index -> '%d'" % goto_index)
-                    self.request.uri = "".join(res.split(":")[2:])
+                    self.request.uri = ":".join(res.split(":")[2:])
                     proxy_logger.debugMessage("Found GOTO statement: Rewritten URI: %s" % self.request.uri)
                     i = goto_index
-
                     continue
 
-                return res
+                self.request.uri = res
+
+            elif self.match[i] == "headers":
+                for header in self.request.headers:
+                    full_header = "%s: %s" % (header, self.request.headers[header])
+                    proxy_logger.debugMessage("Appling header substitutin: pattern: %s, replacement: %s, header: %s" % (new_reg, replacement, full_header))
+                    res = re.sub(new_reg, replacement, full_header)
+                    self.request.headers[header] = "".join(res.split(": ")[1:])
+                    proxy_logger.debugMessage("Header substitution result: %s: %s" % (header, self.request.headers[header]))
+            
+            elif self.match[i] == "new_header":
+                proxy_logger.debugMessage("Adding the new header %s" % replacement)
+                header_name = replacement.split(": ")[0]
+                header_value = ":".join(replacement.split(":")[1:])
+                self.request.headers.update({header_name: header_value})
+            if self.stop[i] == "yes":
+                proxy_logger.debugMessage("Found 'stop' statement in rule, exit from rule evaulation")
+                return
+
             i = i + 1
 
-        proxy_logger.debugMessage("No Match Found")
-        return None
+        return
 
     def parse_ssl_cert(self,cert=None):
         if cert == None:
@@ -113,11 +139,14 @@ class ProxyHandler(tornado.web.RequestHandler):
                 self.finish()
             else:
                 self.set_status(response.code)
-                for header in self.forward_headers:
-                    v = response.headers.get(header)
-                    if v:
-                        proxy_logger.debugMessage("Forwarding HTTP header %s: %s" % (header, v))
-                        self.set_header(header, v)
+                #if "*" in self.forward_headers:
+                for header in response.headers:
+                    if header in self.forward_headers or "*" in self.forward_headers:
+                #for header in self.forward_headers:
+                        v = response.headers.get(header)
+                        if v:
+                            proxy_logger.debugMessage("Forwarding HTTP header %s: %s" % (header, v))
+                            self.set_header(header, v)
                 if response.body:
                     self.write(response.body)
                 self.finish()
@@ -136,9 +165,11 @@ class ProxyHandler(tornado.web.RequestHandler):
             proxy_logger.debugMessage("No client certificate provided")
 
         self.template_vars.update(self.client_cert)
-        url = self.check_request()
+        orig_uri = self.request.uri
+        self.check_request()
 
-        if url == None:
+        # No rule found:
+        if self.request.uri == orig_uri:
             proxy_logger.debugMessage("No rule found, sending error 500")
             self.set_status(500)
             self.write('No roule found')
@@ -146,16 +177,16 @@ class ProxyHandler(tornado.web.RequestHandler):
             return
 
         # the rule starts with DENY:501 Internal server error
-        if url.startswith("DENY:"):
+        if self.request.uri.startswith("DENY:"):
             proxy_logger.debugMessage("Found a DENY message")
-            proxy_logger.debugMessage("Setting status code: %d" % int(url.split(":")[1:][0]))
-            self.set_status(int(url.split(":")[1:][0]))
-            self.write(" ".join(url.split(":")[1:]))
+            proxy_logger.debugMessage("Setting status code: %d" % int(self.request.uri.split(":")[1:][0]))
+            self.set_status(int(self.request.uri.split(":")[1:][0]))
+            self.write(" ".join(self.request.uri.split(":")[1:]))
             self.finish()
             return
 
         # send out the HTTP request
-        proxy_logger.debugMessage("Sending HTTP request to: %s " % url)
+        proxy_logger.debugMessage("Sending HTTP request to: %s " % self.request.uri)
 
         # compile custom headers
         for name in self.send_headers:
@@ -163,7 +194,7 @@ class ProxyHandler(tornado.web.RequestHandler):
             proxy_logger.debugMessage("Compiling custom header '%s:%s'" % (name, new_value))
             self.request.headers.update({name: new_value})
 
-        req = tornado.httpclient.HTTPRequest(url=url, method=self.request.method, body=self.request.body,
+        req = tornado.httpclient.HTTPRequest(url=self.request.uri, method=self.request.method, body=self.request.body,
                 headers=self.request.headers, follow_redirects=False,
                 allow_nonstandard_methods=True)
 
@@ -175,7 +206,7 @@ class ProxyHandler(tornado.web.RequestHandler):
             if hasattr(e, 'response') and e.response:
                 handle_response(e.response)
             else:
-                proxy_logger.errorMessage("Error in sending request to '%s': %s" % (url, str(e)) )
+                proxy_logger.errorMessage("Error in sending request to '%s': %s" % (self.request.uri, str(e)) )
                 self.set_status(500)
                 self.write('Internal server error\n')
                 self.finish()

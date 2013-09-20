@@ -12,7 +12,7 @@ local_ip = default
 ;local_ip = eth0:1
 
 ; define local listening port (default 443)
-listen_port = 8443
+listen_port = 443
 
 ; specify the PID file
 pid_file = __PIDFILE__
@@ -54,23 +54,25 @@ clients_cert = __CONFDIR__/ca.pem
 
 ; Forward headers from remote HTTP server to remote client
 ; Comma separated HTTP headers list, default: Date,Cache-Control,Server,Content-Type,Location,Content-Length
-forward_headers = Date,Cache-Control,Server,Content-Type,Location,Content-Length
+; if you include the * statement all headers will be forwarded, be careful about this
+forward_headers = Accept-Language,Date,Cache-Control,Server,Content-Type,Location,Content-Length
 
-; Send custom HTTP headers to the remote HTTP server
+; Send custom HTTP headers to the remote HTTP server, this is a global directive
+; These headers cannot be overwrited by rules
 ; send_header_XXXX: XXXX represents the header name, you can use all templates variables here.
-send_header_X-Cient_CommonName = ${client_cert_commonName}
-send_header_X-Cient_User-Agent = ${client_header_User-Agent}
+send_header_X-Client_CommonName = ${client_cert_commonName}
+send_header_X-Client_User-Agent = ${client_header_User-Agent}
 send_header_X-Real-Ip = ${remote_ip}
 send_header_X-Proxy-Ip = ${local_ip}
 
 ; Request Matching rules.
 ;
 ; * every rule must start with "rule_" prefix.
-; * every rule must contain a regex and subst statement
-; * every rule is checked sequentially, the first match wins
+; * every rule must contain a regex and subst statement except for new_header and del_header types
+; * every rule is checked sequentially, when a rule with stop = yes is found the evaluation process exits
 ; * regex statement is a python regular expression evalued against
 ;   the requested URI
-; * subst statement is used to build the target URI
+; * subst statement is used to build the target URI or the Header
 ;   in subst statement you can refer to regex groups
 ;
 ;   - if subst statement starts with DENY prefix the proxy replies to the client with an HTTP code
@@ -97,31 +99,65 @@ send_header_X-Proxy-Ip = ${local_ip}
 ;     to the rule 'rule_XX' and the URI will be rewritten by the third expression
 ;     In rewritten URI you can use all 'client_cert_*' and 'client_header_*' placeholders
 ;     Original URI can be referred using the placeholder ${original_uri}
-;   
+;     
+;     GOTO statement can be used only in uri matching rules
+;    
 ; for more informations about python regex see: 
 ; * http://docs.python.org/2/library/re.html
 ; * http://docs.python.org/2/howto/regex.html
 
-; send all requests to www.google.com/
-;[rule_1]
-;regex = ^/(.*)$
-;subst = http://www.google.com/\1
+; Appendy a custom path in the end
+[rule_0]
+match = uri
+regex = ^/*(.*)$
+subst = ${original_uri}/custom-path/
 
-[rule_2]
-; Forward requests for /commonname-COMMON_NAME.xml
-regex = ^/commonname-(${client_cert_commonName}).xml$
-subst = http://my.internal.server/app.php?CN=\1
-
+; Route all requests starting with "a" to
+; http://www.bertera.it/tivano/test-tivano.php adding the original URI to the ORIG_URIA GET variable
+; and then jump to rule_110 in order to manipulate headers
 [rule_10]
-; Deny all requests this is a catch all rule (see the order)
-regex = ^/.*
-subst = DENY:404:Not found: ${commonName}
+; match all requests where the URI starts with a
+regex = ^/a+(.*)$
+; jump to rule_110
+subst = GOTO:rule_110:http://www.bertera.it/tivano/test-tivano.php?ORIG_URIA=\1
+match = uri
 
-[rule_5]
-; GOTO rule
-regex = ^/text-(.*).xml$
-subst = GOTO:rule_101:${original_uri}?AcceptLanguage=${client_header_Accept-Language}&client_commonName=${client_cert_commonName}
+; Route all requests starting with "b" to
+; http://www.bertera.it/tivano/test-tivano.php adding the original URI to the ORIG_URIB GET variable
+; and then jump to rule_11 in order to manipulate headers
+[rule_11]
+; match all requests where the URI starts with b
+regex = ^/b+(.*)$
+; jump to rule_110
+subst = GOTO:rule_110:http://www.bertera.it/tivano/test-tivano.php?ORIG_URB=\1
+match = uri
 
-[rule_101]
-regex = ^(.*)\?AcceptLanguage=(.*)&client_commonName=(.*)
-subst = DENY:404:Not found!!: ${client_cert_commonName} - \1 \2 \3
+; Stop routing rule
+[rule_99]
+regex = .*
+match = uri
+subst = DENY:404:If you are here you're wrong: the request URI must start with "a" or "b" !!
+stop = yes
+
+; Modify Accept-Language header with "it_IT"
+[rule_110]
+regex = ^(Accept-Language):\s.*$
+subst = \1: it_IT
+match = headers
+
+; Don't break virtualhosts: modify Host header with "www.bertera.it"
+[rule_120]
+regex = ^(Host):\s.*$
+subst = \1: www.bertera.it
+match = headers
+
+; Add a new HTTP header, here the regex statement isn't needed
+[rule_130]
+subst = Old-Accept-Language: ${client_header_Accept-Language}
+match = new_header
+
+[rule_140]
+stop = yes
+match = headers
+regex = ^(X-Client_CommonName):\s.*^
+subst = \1: Changed
