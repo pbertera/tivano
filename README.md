@@ -10,7 +10,9 @@ Suggestion and contributions are welcome!!
 
 ## Intro
 
-tivano is an HTTPS reverse proxy based on a regex powered engine.
+tivano is an HTTPS reverse proxy based on a regex ruleset engine.
+
+Tivano works is capable of routing between many HTTP backend server, you can use tivano as a security layer ahead of your web services.
 
 ### What can I do using tivano ?
 
@@ -22,8 +24,6 @@ tivano is an HTTPS reverse proxy based on a regex powered engine.
 ### How tivano is implemented ? 
 
 Tivano is a pure python HTTPS proxy running over the asynchronous [Tornado](http://www.tornadoweb.org).
-
-Tivano works as a reverse proxy capable of routing between many HTTP backend server, you can use tivano as a security layer ahead of your web services.
 
 ## Tivano fast start
 
