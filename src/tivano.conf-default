@@ -106,58 +106,85 @@ send_header_X-Proxy-Ip = ${local_ip}
 ; * http://docs.python.org/2/library/re.html
 ; * http://docs.python.org/2/howto/regex.html
 
-; Appendy a custom path in the end
 [rule_0]
 match = uri
+regex = ^/static(/?)(.*)
+subst = http://${client_header_Host}/tivano/downloads/\2
+stop = yes
+
+; Append a custom path in the end
+[rule_1]
+match = uri
 regex = ^/*(.*)$
-subst = ${original_uri}/custom-path/
+subst = ${original_uri}/rule_0_is_processed/
 
 ; Route all requests starting with "a" to
-; http://www.bertera.it/tivano/test-tivano.php adding the original URI to the ORIG_URIA GET variable
+; http://${client_header_Host}/tivano/test-tivano.php adding the original URI to the ORIG_URIA GET variable
 ; and then jump to rule_110 in order to manipulate headers
 [rule_10]
 ; match all requests where the URI starts with a
-regex = ^/a+(.*)$
+regex = ^/([a-zA-Z]+)(.*)$
 ; jump to rule_110
-subst = GOTO:rule_110:http://www.bertera.it/tivano/test-tivano.php?ORIG_URIA=\1
+subst = GOTO:rule_110:http://${client_header_Host}/tivano/test-tivano.php/\1\2
 match = uri
 
 ; Route all requests starting with "b" to
-; http://www.bertera.it/tivano/test-tivano.php adding the original URI to the ORIG_URIB GET variable
+; http://${client_header_Host}/tivano/test-tivano.php adding the original URI to the ORIG_URIB GET variable
 ; and then jump to rule_11 in order to manipulate headers
-[rule_11]
+[rule_12]
 ; match all requests where the URI starts with b
-regex = ^/b+(.*)$
-; jump to rule_110
-subst = GOTO:rule_110:http://www.bertera.it/tivano/test-tivano.php?ORIG_URB=\1
+regex = ^/([0-9]+)(.*)$
+; jump to rule_120
+subst = GOTO:rule_120:http://${client_header_Host}/tivano/test-tivano.php/\1\2
 match = uri
 
 ; Stop routing rule
 [rule_99]
 regex = .*
 match = uri
-subst = DENY:404:If you are here you're wrong: the request URI must start with "a" or "b" !!
+subst = DENY:404:<h1>Tivano Test page</h1><p>Wrong request: the request URI must starts with a letter or a number !!</b><br/>
+  
+  <br><b>Example:</b><br/>
+  <a href="https://${client_header_Host}/abc">https://${client_header_Host}/abc</a><br/>
+  <a href="https://${client_header_Host}/123">https://${client_header_Host}/123</a><br/>
+  <ul>
+   <li>Every request will be forwarded to the host ${client_header_Host}, with <i>'/rule_0_is_processed/'</i> appended to the URI</li>
+   <li>Every request with an alphabetic URI will be forwarded to ${client_header_Host} with a new HTTP Header (<b>X-Orig-Uri-Kind: Alphabetic</b>)</li>
+   <li>Every request with a numeric URI will be forwarded to ${client_header_Host} with a new HTTP Header (<b>X-Orig-Uri-Kind: Numeric</b>)</li>
+   <li>If you wanna see the static dir request this: <a href="https://${client_header_Host}/static">https://${client_header_Host}/static</a></li>
+   <li><b>Accept-Language</b> header will be overwritted with <b>it_IT</b>, the old one will be saved in the <b>Old-Accept-Language</b> header</li>
+  <ul>
 stop = yes
 
-; Modify Accept-Language header with "it_IT"
+; Add a new HTTP header
 [rule_110]
+subst = X-Orig-Uri-Kind: Alphabetic
+match = new_header
+
+[rule_111]
+regex = (.*)
+subst = GOTO:rule_200:\1
+match = uri
+
+; Add a new HTTP header
+[rule_120]
+subst = X-Orig-Uri-Kind: Numeric
+match = new_header
+
+; Overwrite Accept-Language header with "it_IT"
+[rule_200]
 regex = ^(Accept-Language):\s.*$
 subst = \1: it_IT
 match = headers
 
-; Don't break virtualhosts: modify Host header with "www.bertera.it"
-[rule_120]
-regex = ^(Host):\s.*$
-subst = \1: www.bertera.it
-match = headers
-
-; Add a new HTTP header, here the regex statement isn't needed
-[rule_130]
+; Add a new HTTP header, containing the original Accept-Language
+; here the regex statement isn't needed
+[rule_201]
 subst = Old-Accept-Language: ${client_header_Accept-Language}
 match = new_header
 
-[rule_140]
-stop = yes
+; Don't break virtualhosts: forward the original Host header.
+[rule_202]
+regex = ^(Host):\s.*$
+subst = \1: ${client_header_Host}
 match = headers
-regex = ^(X-Client_CommonName):\s.*^
-subst = \1: Changed

@@ -41,7 +41,7 @@ class CustomTemplate(Template):
 class ProxyHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ['GET', 'POST']
 
-    def initialize(self, request_rules, forward_headers, send_headers):
+    def initialize(self, request_rules, forward_headers, send_headers, local_ip):
         self.regex = request_rules["regex"]
         self.subst = request_rules["subst"]
         self.label = request_rules["label"]
@@ -49,12 +49,9 @@ class ProxyHandler(tornado.web.RequestHandler):
         self.stop = request_rules["stop"]
         self.forward_headers = forward_headers
         self.send_headers = send_headers
-        self.url = None
+        self.local_ip = local_ip
 
     def check_request(self):
-        """
-        set self.url
-        """
         # Evaluating request
         i = 0
         while i < len(self.subst):
@@ -69,6 +66,7 @@ class ProxyHandler(tornado.web.RequestHandler):
             replacement = CustomTemplate(self.subst[i]).safe_substitute(self.template_vars)
             
             if self.match[i] == "uri":
+                prev_uri = self.request.uri
                 proxy_logger.debugMessage("Appling URI substitution: pattern: %s, replacement: %s, URI: %s" % (new_reg, replacement, self.request.uri))
                 res = re.sub(new_reg, replacement, self.request.uri)
                 # URI matched:
@@ -100,8 +98,8 @@ class ProxyHandler(tornado.web.RequestHandler):
                 header_name = replacement.split(": ")[0]
                 header_value = ":".join(replacement.split(":")[1:])
                 self.request.headers.update({header_name: header_value})
-            if self.stop[i] == "yes":
-                proxy_logger.debugMessage("Found 'stop' statement in rule, exit from rule evaulation")
+            if self.stop[i] == "yes" and prev_uri != self.request.uri:
+                proxy_logger.debugMessage("Found 'stop' statement in imatched rule, exit from rule evaulation")
                 return
 
             i = i + 1
@@ -123,7 +121,8 @@ class ProxyHandler(tornado.web.RequestHandler):
 
         # create the template_vars property
         self.template_vars = {"original_uri": self.request.uri,
-                      "remote_ip": self.request.remote_ip,}
+                            "remote_ip": self.request.remote_ip,
+                            "local_ip": self.local_ip}
         headers = {}
         for k in self.request.headers:
             headers["client_header_%s" % k] = self.request.headers[k]
@@ -181,7 +180,7 @@ class ProxyHandler(tornado.web.RequestHandler):
             proxy_logger.debugMessage("Found a DENY message")
             proxy_logger.debugMessage("Setting status code: %d" % int(self.request.uri.split(":")[1:][0]))
             self.set_status(int(self.request.uri.split(":")[1:][0]))
-            self.write(" ".join(self.request.uri.split(":")[1:]))
+            self.write(":".join(self.request.uri.split(":")[2:]))
             self.finish()
             return
 
@@ -230,7 +229,8 @@ def run_proxy(port, local_ip, certs, logger, request_rules, forward_headers, sen
     app = tornado.web.Application([
             (r'.*', ProxyHandler, dict(request_rules = request_rules,
                                     forward_headers = forward_headers,
-                                    send_headers = send_headers)),
+                                    send_headers = send_headers,
+                                    local_ip = local_ip)),
         ],log_function=proxy_log)
 
     http_server = tornado.httpserver.HTTPServer(app,ssl_options={
