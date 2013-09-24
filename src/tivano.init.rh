@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# tivano        This shell script takes care of starting and stopping
+#               the tivano reverse HTTPS proxy
+#
+# chkconfig: - 80 20
+# description: tivano is an HTTPS server configurable trough a \
+#              powerful regex ruleset.
+#
+# processname: tivano
+# config: __CONFDIR__/tivano.conf
+# pidfile: __PIDFILE__
+
+# Source function library.
+. /etc/init.d/functions
+
+RETVAL=0
+PROG="tivano"
+DAEMON="__DAEMONDIR__/${PROG}"
+CONFIG="__CONFDIR__/tivano.conf"
+OPTS="-s $CONFIG"
+
+export PYTHONPATH=$PYHONPATH:"__PYTHON_LIB__"
+
+checkconf() {
+    if [ -f ${DAEMON} ];then
+        if [ -f ${CONFIG} ];then
+            return
+        fi
+    fi
+    echo -n "Error: Check your ${DAEMON} and ${CONFIG} file"
+    echo_failure
+    echo
+    exit 6
+}
+
+
+
+start() {
+    [ "$EUID" != "0" ] && exit 4
+
+    echo -n "Starting $PROG: "
+    checkconf
+    daemon $DAEMON $OPTS
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$PROG
+    return $RETVAL
+}   
+
+stop() {
+    [ "$EUID" != "0" ] && exit 4
+
+    echo -n "Shutting down $PROG: "
+    killproc $PROG
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$PROG
+    return $RETVAL
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        status $PROG
+        ;;
+    restart|force-reload)
+        stop
+        start
+        ;;
+    reload)
+        ;;
+    condrestart|try-restart)
+        if [ -f /var/lock/subsys/$PROG ]; then
+            stop
+            start
+        fi
+        ;;
+    *)
+    echo "Usage: $PROG {start|stop|restart|condrestart|try-restart|reload|force-reload|status|usage}"
+    [ "$1" = "usage" ] && exit 0
+    exit 2
+    ;;
+esac
+exit $?
