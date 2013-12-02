@@ -120,3 +120,7 @@ In **subst**, **regex** rules statements and in **send_header_*** statement you 
 - **${client_cert_XXXXX}**: you can use the RDN fields extraced from the client certificate Subject, Eg.: *${client_cert_commonName}* will contains the commonName, *${client_cert_commonorganizationName}* will contains the organizationName
 - **${client_header_XXXX}**: HTTP headers sent by the client, Eg.: *${client_header_User-Agent}* contains the received HTTP *User-Agent* header
 - **{original_uri}**: the original request URI
+
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/pbertera/tivano/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
